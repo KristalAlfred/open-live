@@ -5,6 +5,8 @@ import { cleanLegacyFixtures } from './db/seed.js';
 import { buildServer } from './server.js';
 import { StromClient } from './lib/strom.js';
 import { getStromToken } from './lib/strom-token.js';
+import { createSourceProviders } from './providers/index.js';
+import { startSourceProviderSync } from './providers/registry.js';
 import type { ProductionDoc } from './db/types.js';
 import type { FastifyBaseLogger } from 'fastify';
 
@@ -84,6 +86,8 @@ async function reconcileProductionStatuses(
 }
 
 async function main() {
+  // Resolve providers before anything else so an unknown id fails startup.
+  const sourceProviders = createSourceProviders(config.sourceProviders);
   const app = await buildServer();
 
   try {
@@ -96,6 +100,10 @@ async function main() {
   }
 
   startIdleWatchdog(app.log);
+  if (sourceProviders.length > 0) {
+    const stopSourceProviderSync = startSourceProviderSync(sourceProviders, app.log, config.sourceProviderPollMs);
+    app.addHook('onClose', async () => stopSourceProviderSync());
+  }
   await app.listen({ port: config.port, host: '0.0.0.0' });
 }
 
