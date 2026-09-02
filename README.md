@@ -50,6 +50,8 @@ Copy `.env.example` to `.env` and fill in the values:
 | `STROM_URL` | Base URL of the Strom pipeline engine | `http://localhost:7000` |
 | `STROM_TOKEN` | OSC Personal Access Token for authenticating against an OSC-hosted Strom instance | _(empty — not needed for local Strom)_ |
 | `LOG_LEVEL` | Fastify log level (`trace`, `debug`, `info`, `warn`, `error`) | `info` |
+| `SOURCE_PROVIDERS` | Comma-separated ids of [source providers](#source-providers) to poll. Unknown ids fail startup. | _(empty — disabled)_ |
+| `SOURCE_PROVIDER_POLL_MS` | Interval between source provider polls, in milliseconds | `5000` |
 
 > **Never commit `.env`** — it is gitignored. Use `.env.example` as the reference.
 
@@ -97,6 +99,12 @@ pnpm start
 ### Source model
 
 Sources represent individual video/audio feeds. Each source has a `streamType` (`srt` or `whip`) and an `address` (SRT URI or WHIP endpoint URL).
+
+### Source providers
+
+A source provider is a small module under `src/providers/` that lists source candidates produced by another system. The server polls every provider named in `SOURCE_PROVIDERS` and materialises the candidates as ordinary sources, so assignment, activation and the studio UI need no knowledge of where a source came from.
+
+Provider-owned sources carry a `provider` object (`{ id, externalId, syncedAt }`) and `readOnly: true` in API responses. `PATCH` and `DELETE` on them return `409`. A source that the provider stops listing is marked `inactive` rather than deleted, so a production that still references it keeps its assignment.
 
 ### Template model
 
