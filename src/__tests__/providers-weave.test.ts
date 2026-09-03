@@ -88,6 +88,18 @@ describe('weave provider', () => {
     expect((await p.list()).map((s) => s.externalId)).toEqual(['ok/0']);
   });
 
+  it('skips device ends, which weave reports as null endpoints', async () => {
+    const { provider: p } = provider({
+      '/v1/streams': { status: 200, body: [stream('browser-cam'), stream('browser-return')] },
+      '/v1/streams/browser-cam/endpoints': { status: 200, body: { ingress: null, outputs: [endpoint('node-1', 20352)] } },
+      '/v1/streams/browser-return/endpoints': { status: 200, body: { ingress: endpoint('node-1', 20617), outputs: [null] } },
+    });
+
+    expect(await p.list()).toEqual([
+      { externalId: 'browser-cam/0', name: 'browser-cam', streamType: 'srt', address: 'srt://172.27.0.10:20352?mode=caller', status: 'active' },
+    ]);
+  });
+
   it('treats 401 as a configuration error without leaking the token', async () => {
     const { provider: p } = provider({ '/v1/streams': { status: 401, body: { error: 'unauthorized' } } });
     await expect(p.list()).rejects.toThrow(/401/);
