@@ -2,7 +2,8 @@
  * Source provider for open-weave. Lists every enabled stream on the northbound
  * API and turns each placed, node-hosted output into an SRT source that
  * open-live dials (`?mode=caller`). Remote outputs (empty `node`) are
- * destinations weave dials out to itself, so they are not offered.
+ * destinations weave dials out to itself, and `null` outputs are device ends
+ * (a node's own screen) with no socket at all, so neither is offered.
  */
 
 import { requireEnv } from '../config.js';
@@ -28,8 +29,8 @@ interface WeaveEndpoint {
 }
 
 interface WeaveEndpoints {
-  ingress: WeaveEndpoint;
-  outputs: WeaveEndpoint[];
+  ingress: WeaveEndpoint | null;
+  outputs: Array<WeaveEndpoint | null>;
 }
 
 const DEFAULT_TIMEOUT_MS = 5000;
@@ -87,10 +88,9 @@ export function createWeaveProvider(options: WeaveProviderOptions): SourceProvid
   };
 }
 
-export function toSources(streamName: string, outputs: WeaveEndpoint[]): ProviderSource[] {
+export function toSources(streamName: string, outputs: Array<WeaveEndpoint | null>): ProviderSource[] {
   const hosted = outputs
-    .map((output, index) => ({ output, index }))
-    .filter(({ output }) => Boolean(output.node));
+    .flatMap((output, index) => (output && output.node ? [{ output, index }] : []));
   return hosted.map(({ output, index }) => ({
     externalId: `${streamName}/${index}`,
     name: hosted.length === 1 ? streamName : `${streamName} (${output.node})`,
