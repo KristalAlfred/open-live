@@ -44,8 +44,12 @@ drive, and a `coturn` relay for the browser's WebRTC previews:
 
 ```bash
 cp .env.example .env      # COUCHDB_PASSWORD is the only value compose requires
-docker compose up -d --build
+just up                   # or: docker compose up -d --build
 ```
+
+`just up` runs the stack alone; `just up-weave` adds the [open-weave
+provider](#source-providers). Running plain `docker compose up` leaves the
+provider off, since its wiring lives in `docker-compose.weave.yml`.
 
 The API is then on `http://localhost:3000` and Strom's own UI on
 `http://localhost:28083`. Start the studio frontend from its own checkout:
@@ -157,7 +161,8 @@ pnpm dev
 `docker-compose.weave.yml` layers the provider onto the compose stack:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.weave.yml up -d
+just up-weave
+# or: docker compose -f docker-compose.yml -f docker-compose.weave.yml up -d
 ```
 
 It passes the three variables through from `.env` and joins Strom to the
