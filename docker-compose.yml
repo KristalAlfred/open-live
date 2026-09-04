@@ -42,6 +42,11 @@ services:
     environment:
       STROM_PORT: "8080"
       STROM_DATA_DIR: /data
+      # Handed to browsers via /api/ice-servers. The TURN entry names the port
+      # published below, so a browser on the Docker host relays through coturn;
+      # Strom itself resolves `localhost` to its own container and gathers no
+      # relay candidates, which it does not need.
+      STROM_SERVER_ICE_SERVERS: stun:stun.l.google.com:19302,turn:openlive:openlive@localhost:3478?transport=tcp
     volumes:
       - strom_data:/data
     ports:
@@ -56,6 +61,28 @@ services:
       timeout: 3s
       retries: 12
       start_period: 20s
+
+  # A browser on the Docker host cannot reach Strom's container addresses, and
+  # Chrome hides the browser's own address behind mDNS unless the page holds
+  # camera or microphone permission, so without a relay ICE has no pair that
+  # works. coturn relays between the browser (TCP 3478 on the host) and Strom
+  # (this compose network). Dev credentials, like the ports and origins above.
+  coturn:
+    image: coturn/coturn:latest
+    command:
+      - --lt-cred-mech
+      - --user=openlive:openlive
+      - --realm=open-live
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --no-udp
+      - --no-tls
+      - --no-dtls
+      - --fingerprint
+      - --log-file=stdout
+    ports:
+      - "3478:3478/tcp"
 
 networks:
   weave_bench:

@@ -129,6 +129,8 @@ pnpm dev
 
 `docker-compose.yml` passes the same three variables through from `.env` and runs a `strom` service for open-live to drive. That Strom also joins the open-weave bench's core network (`ow-bench_net_core`, an external network the bench creates) so it can dial the SRT outputs the provider lists, so bring the bench up first. From inside the container the northbound API on the host is `http://host.docker.internal:29080`, not `localhost`.
 
+The compose file also runs a `coturn` relay and puts it in Strom's ICE server list, which `/api/v1/ice-servers` hands to the studio. A browser on the Docker host cannot reach Strom's container addresses, and Chrome replaces the browser's own address with an mDNS name unless the page holds camera or microphone permission, so without a relay the WHEP previews never connect. With the relay, a browser with no permissions at all received the PGM at 1280x720.
+
 ### Template model
 
 A template is a reusable Strom flow blueprint. It contains:
