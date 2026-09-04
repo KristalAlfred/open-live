@@ -127,6 +127,8 @@ WEAVE_NORTHBOUND_TOKEN=<token> \
 pnpm dev
 ```
 
+`docker-compose.yml` passes the same three variables through from `.env` and runs a `strom` service for open-live to drive. That Strom also joins the open-weave bench's core network (`ow-bench_net_core`, an external network the bench creates) so it can dial the SRT outputs the provider lists, so bring the bench up first. From inside the container the northbound API on the host is `http://host.docker.internal:29080`, not `localhost`.
+
 ### Template model
 
 A template is a reusable Strom flow blueprint. It contains:

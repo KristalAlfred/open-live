@@ -22,8 +22,46 @@ services:
       # Required for production deployments — set a strong random secret.
       # Omit (or leave unset) only when running behind an external auth layer.
       API_KEY: ${API_KEY:?Set API_KEY in .env (see .env.example)}
+      STROM_URL: http://strom:8080
+      SOURCE_PROVIDERS: ${SOURCE_PROVIDERS:-}
+      WEAVE_NORTHBOUND_URL: ${WEAVE_NORTHBOUND_URL:-}
+      WEAVE_NORTHBOUND_TOKEN: ${WEAVE_NORTHBOUND_TOKEN:-}
     depends_on:
-      - couchdb
+      couchdb:
+        condition: service_started
+      strom:
+        condition: service_healthy
+
+  # Also joins the open-weave bench's core network, so it can dial the SRT
+  # outputs the weave provider lists. The bench's route-manager installs the
+  # routes into the node subnets by this container's name, and the network is
+  # created by the bench (`just bench up` in open-weave), so bring that up first.
+  strom:
+    image: eyevinntechnology/strom:latest
+    container_name: ow-open-live-strom
+    environment:
+      STROM_PORT: "8080"
+      STROM_DATA_DIR: /data
+    volumes:
+      - strom_data:/data
+    ports:
+      - "28083:8080"
+    networks:
+      default: {}
+      weave_bench:
+        ipv4_address: 172.25.0.50
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+networks:
+  weave_bench:
+    name: ow-bench_net_core
+    external: true
 
 volumes:
   couchdb_data:
+  strom_data:
