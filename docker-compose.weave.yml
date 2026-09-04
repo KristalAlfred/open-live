@@ -12,6 +12,9 @@ services:
       SOURCE_PROVIDERS: ${SOURCE_PROVIDERS:-weave}
       WEAVE_NORTHBOUND_URL: ${WEAVE_NORTHBOUND_URL:-http://host.docker.internal:29080}
       WEAVE_NORTHBOUND_TOKEN: ${WEAVE_NORTHBOUND_TOKEN:-}
+      # weave places SRT outputs on a node subnet, so every source it lists is
+      # an RFC1918 address that srtUrl() rejects by default.
+      SOURCE_PROVIDER_ALLOW_PRIVATE_HOSTS: ${SOURCE_PROVIDER_ALLOW_PRIVATE_HOSTS:-true}
 
   strom:
     networks:

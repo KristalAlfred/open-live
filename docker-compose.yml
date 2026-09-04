@@ -24,9 +24,12 @@ services:
       COUCHDB_NAME: open-live
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      # Required for production deployments — set a strong random secret.
-      # Omit (or leave unset) only when running behind an external auth layer.
-      API_KEY: ${API_KEY:?Set API_KEY in .env (see .env.example)}
+      # Optional here, unlike the upstream compose default. main.ts throws on a
+      # missing key only when NODE_ENV=production and otherwise warns, and the
+      # studio has no way to send a static key — sat.ts only sets an
+      # Authorization header when OSC_PAT is configured — so requiring one here
+      # makes every studio request 401. Set it to guard a non-local deployment.
+      API_KEY: ${API_KEY:-}
       STROM_URL: http://strom:8080
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
     depends_on:
