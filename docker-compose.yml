@@ -1,6 +1,11 @@
 services:
   couchdb:
     image: couchdb:3
+    # A fresh single node never creates its system databases, and the auth cache
+    # then logs an error every 5 s. `single_node` makes CouchDB create them at
+    # start. Written from inside rather than bind-mounted: the image entrypoint
+    # chowns everything under /opt/couchdb and fails on a file mounted from macOS.
+    entrypoint: ["sh", "-c", "printf '[couchdb]\\nsingle_node = true\\n' > /opt/couchdb/etc/local.d/single-node.ini && exec /docker-entrypoint.sh /opt/couchdb/bin/couchdb"]
     environment:
       COUCHDB_USER: ${COUCHDB_USER:-admin}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Set COUCHDB_PASSWORD in .env (see .env.example)}
