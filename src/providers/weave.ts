@@ -19,6 +19,9 @@ export interface WeaveProviderOptions {
 interface WeaveStream {
   name: string;
   enabled?: boolean;
+  /** Positionally aligned with the endpoints response `outputs`, one entry per
+   *  destination — weave builds both from `stream.destinations` in order. */
+  destinations?: Array<{ srt?: { latency?: number } } | null>;
 }
 
 interface WeaveEndpoint {
@@ -34,6 +37,18 @@ interface WeaveEndpoints {
 }
 
 const DEFAULT_TIMEOUT_MS = 5000;
+
+/** Matches the bounds the REST schema enforces in routes/sources.ts, so a
+ *  provider-owned latency cannot reach Strom by a path that skips them. */
+const MIN_LATENCY_MS = 20;
+const MAX_LATENCY_MS = 8000;
+
+function srtLatency(destination: { srt?: { latency?: number } } | null | undefined): number | undefined {
+  const latency = destination?.srt?.latency;
+  if (latency === undefined) return undefined;
+  if (!Number.isInteger(latency) || latency < MIN_LATENCY_MS || latency > MAX_LATENCY_MS) return undefined;
+  return latency;
+}
 
 export function weaveProviderFromEnv(): SourceProvider {
   return createWeaveProvider({
@@ -81,14 +96,18 @@ export function createWeaveProvider(options: WeaveProviderOptions): SourceProvid
       const streams = (await listStreams()).filter((s) => s.enabled !== false);
       const perStream = await Promise.all(streams.map(async (stream) => {
         const endpoints = await getEndpoints(stream.name);
-        return endpoints ? toSources(stream.name, endpoints.outputs) : [];
+        return endpoints ? toSources(stream.name, endpoints.outputs, stream.destinations) : [];
       }));
       return perStream.flat();
     },
   };
 }
 
-export function toSources(streamName: string, outputs: Array<WeaveEndpoint | null>): ProviderSource[] {
+export function toSources(
+  streamName: string,
+  outputs: Array<WeaveEndpoint | null>,
+  destinations: WeaveStream['destinations'] = [],
+): ProviderSource[] {
   const hosted = outputs
     .flatMap((output, index) => (output && output.node ? [{ output, index }] : []));
   return hosted.map(({ output, index }) => ({
@@ -97,5 +116,6 @@ export function toSources(streamName: string, outputs: Array<WeaveEndpoint | nul
     streamType: 'srt',
     address: output.url.includes('?') ? `${output.url}&mode=caller` : `${output.url}?mode=caller`,
     status: 'active',
+    latency: srtLatency(destinations[index]),
   }));
 }

@@ -114,6 +114,77 @@ describe('weave provider', () => {
     await expect(p.list()).rejects.toThrow(/500/);
   });
 
+  it("carries a destination's declared SRT latency onto the matching source", async () => {
+    const { provider: p } = provider({
+      '/v1/streams': {
+        status: 200,
+        body: [{
+          name: 'guest-1',
+          source: { device: { node: 'guest-1' } },
+          destinations: [{ srt: { node: 'node-2', latency: 200 } }],
+        }],
+      },
+      '/v1/streams/guest-1/endpoints': { status: 200, body: { ingress: null, outputs: [endpoint('node-2', 20665)] } },
+    });
+
+    expect(await p.list()).toEqual([
+      { externalId: 'guest-1/0', name: 'guest-1', streamType: 'srt', address: 'srt://172.27.0.10:20665?mode=caller', status: 'active', latency: 200 },
+    ]);
+  });
+
+  it('pairs each latency with its own output, skipping the device end that holds a slot', async () => {
+    const { provider: p } = provider({
+      '/v1/streams': {
+        status: 200,
+        body: [{
+          name: 'mixed',
+          source: { srt: { node: 'node-1' } },
+          destinations: [
+            { srt: { node: 'node-2', latency: 300 } },
+            { device: { node: 'screen-1' } },
+            { srt: { node: 'node-3', latency: 900 } },
+          ],
+        }],
+      },
+      '/v1/streams/mixed/endpoints': {
+        status: 200,
+        body: { ingress: endpoint('node-1', 1), outputs: [endpoint('node-2', 2), null, endpoint('node-3', 3)] },
+      },
+    });
+
+    expect((await p.list()).map((s) => [s.externalId, s.latency])).toEqual([
+      ['mixed/0', 300],
+      ['mixed/2', 900],
+    ]);
+  });
+
+  it('falls back to open-live\'s default when a declared latency is out of range or absent', async () => {
+    const { provider: p } = provider({
+      '/v1/streams': {
+        status: 200,
+        body: [{
+          name: 'odd',
+          source: { srt: { node: 'node-1' } },
+          destinations: [
+            { srt: { node: 'node-2', latency: 19 } },
+            { srt: { node: 'node-2', latency: 8001 } },
+            { srt: { node: 'node-2', latency: 12.5 } },
+            { srt: { node: 'node-2' } },
+          ],
+        }],
+      },
+      '/v1/streams/odd/endpoints': {
+        status: 200,
+        body: {
+          ingress: endpoint('node-1', 1),
+          outputs: [endpoint('node-2', 2), endpoint('node-2', 3), endpoint('node-2', 4), endpoint('node-2', 5)],
+        },
+      },
+    });
+
+    expect((await p.list()).map((s) => s.latency)).toEqual([undefined, undefined, undefined, undefined]);
+  });
+
   it('URL-encodes stream names', async () => {
     const { provider: p, calls } = provider({
       '/v1/streams': { status: 200, body: [stream('a b/c')] },

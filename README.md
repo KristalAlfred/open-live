@@ -114,7 +114,7 @@ Available providers:
 |---|---|---|
 | `weave` | [open-weave](https://github.com/Eyevinn/open-weave) | `WEAVE_NORTHBOUND_URL`, `WEAVE_NORTHBOUND_TOKEN` |
 
-The `weave` provider lists every enabled stream on the northbound API and offers each placed, node-hosted output as an SRT source with `?mode=caller` appended, which is the address open-live's `builtin.mpegtssrt_input` block dials. Outputs that weave dials out to (remote destinations) and streams that are not yet placed are skipped.
+The `weave` provider lists every enabled stream on the northbound API and offers each placed, node-hosted output as an SRT source with `?mode=caller` appended, which is the address open-live's `builtin.mpegtssrt_input` block dials. Outputs that weave dials out to (remote destinations) and streams that are not yet placed are skipped. The matching destination's declared SRT latency is carried onto the source, so the input block and the vision mixer's `min_upstream_latency` agree with what weave configured; a value outside the 20–8000 ms the REST schema allows is ignored in favour of the default.
 
 ```bash
 SOURCE_PROVIDERS=weave \
