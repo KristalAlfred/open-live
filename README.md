@@ -37,6 +37,37 @@ cp .env.example .env
 # Edit .env with your credentials and config
 ```
 
+## Running locally with Docker Compose
+
+`docker-compose.yml` brings up everything the server needs — CouchDB, a Strom to
+drive, and a `coturn` relay for the browser's WebRTC previews:
+
+```bash
+cp .env.example .env      # COUCHDB_PASSWORD is the only value compose requires
+just up                   # or: docker compose up -d --build
+```
+
+`just up` runs the stack alone; `just up-weave` adds the [open-weave
+provider](#source-providers). Running plain `docker compose up` leaves the
+provider off, since its wiring lives in `docker-compose.weave.yml`.
+
+The API is then on `http://localhost:3000` and Strom's own UI on
+`http://localhost:28083`. Start the studio frontend from its own checkout:
+
+```bash
+cd ../open-live-studio && pnpm install && pnpm dev
+```
+
+It serves `http://localhost:5173`, which is the origin `CORS_ORIGIN` allows by
+default, and talks to `http://localhost:3000` unless `OPEN_LIVE_URL` says
+otherwise.
+
+For a production with no external feeds, assign the built-in test patterns
+`__test1__` (pinwheel) and `__test2__` (colours) to mixer inputs — the studio
+offers both in the source dropdown. Strom encodes PGM and multiview in software,
+which costs roughly three cores per production; on Docker Desktop or colima,
+give the VM at least 6 CPUs or the daemon starves.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` and fill in the values:
@@ -126,6 +157,21 @@ WEAVE_NORTHBOUND_URL=http://localhost:29080 \
 WEAVE_NORTHBOUND_TOKEN=<token> \
 pnpm dev
 ```
+
+`docker-compose.weave.yml` layers the provider onto the compose stack:
+
+```bash
+just up-weave
+# or: docker compose -f docker-compose.yml -f docker-compose.weave.yml up -d
+```
+
+It passes the three variables through from `.env` and joins Strom to the
+open-weave bench's core network (`ow-bench_net_core`, an external network the
+bench creates) so it can dial the SRT outputs the provider lists, so bring the
+bench up first. From inside the container the northbound API on the host is
+`http://host.docker.internal:29080`, not `localhost`.
+
+The base compose file runs a `coturn` relay and puts it in Strom's ICE server list, which `/api/v1/ice-servers` hands to the studio. A browser on the Docker host cannot reach Strom's container addresses, and Chrome replaces the browser's own address with an mDNS name unless the page holds camera or microphone permission, so without a relay the WHEP previews never connect. With the relay, a browser with no permissions at all received the PGM at 1280x720.
 
 ### Template model
 
