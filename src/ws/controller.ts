@@ -243,6 +243,10 @@ async function stromTransition(
   // Strom's trigger_transition uses from_input/to_input directly — selectPreview
   // call is belt-and-suspenders so Strom's own UI also reflects the new PVW.
   const fromIndex = fromMixerInput ? (padToIndex(fromMixerInput) ?? toIndex) : toIndex;
+  // Strom's cut with from_input === to_input ends with that input at alpha 0 and
+  // the next input at alpha 1, so the program bus shows an unfed input instead of
+  // the source. Cutting a source to itself has nothing to do, so don't send it.
+  if (fromIndex === toIndex) return;
   const strom = await makeStromClient();
   try {
     // selectPreview is belt-and-suspenders so Strom's own UI reflects the new
