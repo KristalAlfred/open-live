@@ -1,0 +1,27 @@
+# Adds the open-weave source provider on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.weave.yml up -d
+#
+# The bench's route-manager installs routes into the node subnets by container
+# name, and `ow-bench_net_core` is created by the bench (`just bench up` in
+# open-weave), so bring the bench up first. From inside the container the
+# northbound API on the host is `http://host.docker.internal:29080`.
+services:
+  open-live:
+    environment:
+      SOURCE_PROVIDERS: ${SOURCE_PROVIDERS:-weave}
+      WEAVE_NORTHBOUND_URL: ${WEAVE_NORTHBOUND_URL:-http://host.docker.internal:29080}
+      WEAVE_NORTHBOUND_TOKEN: ${WEAVE_NORTHBOUND_TOKEN:-}
+      # weave places SRT outputs on a node subnet, so every source it lists is
+      # an RFC1918 address that srtUrl() rejects by default.
+      SOURCE_PROVIDER_ALLOW_PRIVATE_HOSTS: ${SOURCE_PROVIDER_ALLOW_PRIVATE_HOSTS:-true}
+
+  strom:
+    networks:
+      weave_bench:
+        ipv4_address: 172.25.0.50
+
+networks:
+  weave_bench:
+    name: ow-bench_net_core
+    external: true

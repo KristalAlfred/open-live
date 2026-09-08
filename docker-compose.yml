@@ -1,6 +1,11 @@
 services:
   couchdb:
     image: couchdb:3
+    # A fresh single node never creates its system databases, and the auth cache
+    # then logs an error every 5 s. `single_node` makes CouchDB create them at
+    # start. Written from inside rather than bind-mounted: the image entrypoint
+    # chowns everything under /opt/couchdb and fails on a file mounted from macOS.
+    entrypoint: ["sh", "-c", "printf '[couchdb]\\nsingle_node = true\\n' > /opt/couchdb/etc/local.d/single-node.ini && exec /docker-entrypoint.sh /opt/couchdb/bin/couchdb"]
     environment:
       COUCHDB_USER: ${COUCHDB_USER:-admin}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Set COUCHDB_PASSWORD in .env (see .env.example)}
@@ -17,13 +22,76 @@ services:
       PORT: "3000"
       COUCHDB_URL: http://${COUCHDB_USER:-admin}:${COUCHDB_PASSWORD}@couchdb:5984
       COUCHDB_NAME: open-live
-      CORS_ORIGIN: http://localhost:5173
-      LOG_LEVEL: info
-      # Required for production deployments — set a strong random secret.
-      # Omit (or leave unset) only when running behind an external auth layer.
-      API_KEY: ${API_KEY:?Set API_KEY in .env (see .env.example)}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Optional here, unlike the upstream compose default. main.ts throws on a
+      # missing key only when NODE_ENV=production and otherwise warns, and the
+      # studio has no way to send a static key — sat.ts only sets an
+      # Authorization header when OSC_PAT is configured — so requiring one here
+      # makes every studio request 401. Set it to guard a non-local deployment.
+      API_KEY: ${API_KEY:-}
+      STROM_URL: http://strom:8080
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
     depends_on:
-      - couchdb
+      couchdb:
+        condition: service_started
+      strom:
+        condition: service_healthy
+
+  strom:
+    image: eyevinntechnology/strom:latest
+    container_name: ow-open-live-strom
+    environment:
+      STROM_PORT: "8080"
+      STROM_DATA_DIR: /data
+      # Handed to browsers via /api/v1/ice-servers. The TURN entry names the port
+      # published below, so a browser on the Docker host relays through coturn;
+      # Strom itself resolves `localhost` to its own container and gathers no
+      # relay candidates, which it does not need.
+      STROM_SERVER_ICE_SERVERS: stun:stun.l.google.com:19302,turn:openlive:openlive@localhost:3478?transport=tcp
+    volumes:
+      - strom_data:/data
+    # Strom holds several sockets per WHEP session and does not release them all
+    # when a viewer leaves, so the default soft limit of 1024 is reached after a
+    # couple of hours of studio use. It then fails to build new pipeline blocks
+    # and stops answering, which reads as open-live hanging on activate.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 524288
+    ports:
+      - "28083:8080"
+    networks:
+      default: {}
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+
+  # A browser on the Docker host cannot reach Strom's container addresses, and
+  # Chrome hides the browser's own address behind mDNS unless the page holds
+  # camera or microphone permission, so without a relay ICE has no pair that
+  # works. coturn relays between the browser (TCP 3478 on the host) and Strom
+  # (this compose network). Dev credentials, like the ports and origins above.
+  coturn:
+    image: coturn/coturn:latest
+    command:
+      - --lt-cred-mech
+      - --user=openlive:openlive
+      - --realm=open-live
+      - --listening-port=3478
+      - --min-port=49160
+      - --max-port=49200
+      - --no-udp
+      - --no-tls
+      - --no-dtls
+      - --fingerprint
+      - --log-file=stdout
+    ports:
+      - "3478:3478/tcp"
 
 volumes:
   couchdb_data:
+  strom_data:
