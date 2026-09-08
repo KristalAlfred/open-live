@@ -51,6 +51,14 @@ services:
       STROM_SERVER_ICE_SERVERS: stun:stun.l.google.com:19302,turn:openlive:openlive@localhost:3478?transport=tcp
     volumes:
       - strom_data:/data
+    # Strom holds several sockets per WHEP session and does not release them all
+    # when a viewer leaves, so the default soft limit of 1024 is reached after a
+    # couple of hours of studio use. It then fails to build new pipeline blocks
+    # and stops answering, which reads as open-live hanging on activate.
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 524288
     ports:
       - "28083:8080"
     networks:
